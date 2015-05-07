@@ -14,6 +14,7 @@ import cmd
 import os
 import sys
 import clint
+import inspect
 
 #############################################################################
 class MongoJSONEncoder( json.JSONEncoder ):
@@ -61,9 +62,45 @@ class Mops():
         self.intro = "Welcome to MOPS – MOngodb Prototype Shell!\n"
         self.outro = "\nThanks for using MOPS – Have a nice day!"
         self.db = DatabaseWrapper()
+        commandPrefix = "handleTheCommand"
+        self.commands = [ ":" + method.replace( commandPrefix, "").lower() for method in dir(self) if callable(getattr(self, method)) if method.startswith( commandPrefix ) ]
 
     def shutdown( self ):
         print( self.outro )
+
+    def matchesForExplorationMode( self ):
+        components = readline.get_line_buffer().split()
+        if len( components ) < 2:
+            return self.db.databaseNames()
+        elif len( components ) == 2:
+            return self.db.collectionNames( components[0] )
+        else:
+            return []
+
+    def matchesForCommandMode( self ):
+        numberOfSpaces = readline.get_line_buffer().count( " " )
+        if numberOfSpaces == 0:
+            return self.commands
+        components = readline.get_line_buffer().split()
+        command = components[0][1:]
+        parameterNames = inspect.getargspec( getattr( self, "handleTheCommand%s" % command.upper() ) ).args
+        if numberOfSpaces > len( parameterNames ) - 1:
+            return []
+
+        if numberOfSpaces == 1:
+            return self.db.databaseNames()
+        elif numberOfSpaces == 2:
+            if "atabase" in parameterNames[2]:
+                return self.db.databaseNames()
+            else:
+                return self.db.collectionNames( components[1] )
+        elif numberOfSpaces == 3:
+            if "atabase" in parameterNames[3]:
+                return self.db.databaseNames()
+            else:
+                return self.db.collectionNames( components[1] )
+        elif numberOfSpaces == 4:
+            return self.db.collectionNames( components[3] )
 
     def complete( self, text, state ):
         """
@@ -75,55 +112,122 @@ class Mops():
             #begin = readline.get_begidx()
             #end = readline.get_endidx()
             #being_completed = origline[begin:end]
-            components = origline.split( " " )
-
-            if len( components ) < 2:
-                allmatches = self.db.databaseNames()
-            elif len( components ) == 2:
-                allmatches = self.db.collectionNames( components[0] )
+            if len( origline ) > 0 and origline[0] == ":":
+                allmatches = self.matchesForCommandMode()
             else:
-                allmatches = []
+                allmatches = self.matchesForExplorationMode()
 
             self.matches = [ match for match in allmatches if match.startswith( text )]
 
         return self.matches[state] if state < len( self.matches ) else None
+
+    def handleLine( self, line ):
+        if line.startswith( ":" ):
+            return self.handleCommandLine( line )
+        else:
+            return self.handleExplorationLine( line )
+
+    def handleCommandLine( self, line ):
+        components = line.strip().split()
+        command, parameters = components[0][1:], components[1:]
+        try:
+            commandMethod = getattr( self, "handleTheCommand%s" % command.upper() )
+            argspec = inspect.getargspec( commandMethod )
+            numberOfExpectedArguments = len( argspec.args ) - 1  # self is implicit
+            if numberOfExpectedArguments != len( parameters ):
+                return getattr( commandMethod, "__doc__" ).strip()
+            result = commandMethod( *parameters )
+        except AttributeError:
+            return "Sorry, command '%s' is not implemented." % command
+        else:
+            return result
+
+    def handleExplorationLine( self, line ):
+        components = line.strip().split()
+        if len( components ) == 0:
+            result = self.db.databaseNames()
+        elif len( components ) == 1:
+            dbname = components[0]
+            result = self.db.collectionNames( dbname )
+        elif len( components ) == 2:
+            dbname = components[0]
+            collection = components[1]
+            result = self.db.queryDocuments( dbname, collection, limit=15 )
+        elif len( components ) == 3:
+            dbname = components[0]
+            collection = components[1]
+            query = components[2]
+
+            if query.startswith( "{" ):
+                try:
+                    dictionary = eval( components[2] )
+                    result = self.db.queryDocuments( dbname, collection, limit=15, query=dictionary )
+                except Exception:
+                    result = repr( sys.exc_info() )
+            else:
+                result = self.db.distinctValuesForField( dbname, collection, fieldname=query )
+        else:
+            result = "?"
+        return result
+
+    def handleTheCommandQ( self ):
+        raise EOFError()
+
+    def handleTheCommandHELP( self ):
+        result = """To be done (Read from README.md, so we don't have to maintain two set of docs)."""
+        return result
+
+    def handleTheCommandCOPYDB( self, sourceDatabase, destDatabase ):
+        """
+        Syntax: copydb <sourceDatabase> <destDatabase>
+
+        Insert everything from the source database into the destination database.
+        """
+        return "NYI"
+
+    def handleTheCommandDUPLICATECOLL( self, sourceDatabase, sourceCollection, destCollection ):
+        """
+        Syntax: duplicatecoll <sourceDatabase> <sourceCollection> <destCollection>
+
+        Insert everything from the source collection into the destination collection.
+        """
+        return "NYI"
+
+    def handleTheCommandCOPYCOLL( self, sourceDatabase, sourceCollection, destDatabase, destCollection ):
+        """
+        Syntax: copycoll <sourceDatabase> <sourceCollection> <destDatabase> <destCollection>
+
+        Insert everything from the source collection into another database's collection.
+        """
+        return "NYI"
+
+    def handleTheCommandDROPDB( self, database ):
+        """
+        Syntax: dropdb <database>
+
+        Delete a database.
+        """
+        return "NYI"
+
+    def handleTheCommandDROPCOLL( self, database, collection ):
+        """
+        Syntax: dropcoll <database> <collection>
+
+        Delete a collection.
+        """
+        return "NYI"
 
     def run( self ):
         """
         Implementation of the command loop
         """
         print( self.intro )
-        readline.set_completer_delims( readline.get_completer_delims().replace( '-', '' ) )
-        readline.parse_and_bind( "tab:complete")
+        readline.set_completer_delims( readline.get_completer_delims().replace( '-', '' ).replace( ":", "" ) )
+        readline.parse_and_bind( "tab:complete" )
         readline.set_completer( self.complete )
         while True:
             line = input( self.prompt )
-            components = line.strip().split()
-            if len( components ) == 0:
-                result = self.db.databaseNames()
-            elif len( components ) == 1:
-                dbname = components[0]
-                result = self.db.collectionNames( dbname )
-            elif len( components ) == 2:
-                dbname = components[0]
-                collection = components[1]
-                result = self.db.queryDocuments( dbname, collection, limit=15 )
-            elif len( components ) == 3:
-                dbname = components[0]
-                collection = components[1]
-                query = components[2]
-
-                if query.startswith( "{" ):
-                    try:
-                        dictionary = eval( components[2] )
-                        result = self.db.queryDocuments( dbname, collection, limit=15, query=dictionary )
-                    except Exception:
-                        result = repr( sys.exc_info() )
-                else:
-                    result = self.db.distinctValuesForField( dbname, collection, fieldname=query )
-            else:
-                result = "?"
-
+            result = self.handleLine( line )
             print( json.dumps( result, sort_keys=True, indent=2, separators=( ',', ': ' ), cls=MongoJSONEncoder ) )
 
 
