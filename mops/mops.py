@@ -13,8 +13,9 @@ import readline
 import cmd
 import os
 import sys
-import clint
 import inspect
+
+from clint.textui import progress
 
 #############################################################################
 class MongoJSONEncoder( json.JSONEncoder ):
@@ -23,10 +24,11 @@ class MongoJSONEncoder( json.JSONEncoder ):
     Our custom JSON encoder to facilitate encoding some of the mongodb types which are not standard JSON.
     """
 
-    def default(self, obj):
-        if isinstance(obj, bson.ObjectId):
+    def default( self, obj ):
+        try:
+            return json.JSONEncoder.default( self, obj )
+        except TypeError:
             return repr( obj )
-        return json.JSONEncoder.default(self, obj)
 
 #############################################################################
 class DatabaseWrapper():
@@ -49,6 +51,43 @@ class DatabaseWrapper():
 
     def distinctValuesForField( self, dbname, collection, fieldname ):
         return self.mc[dbname][collection].distinct( fieldname )
+
+    def copyDatabase( self, dbname, dbname2 ):
+        try:
+            self.mc.admin.command( "copydb", fromdb=dbname, todb=dbname2 )
+        except Exception:
+            return repr( sys.exc_info() )
+        else:
+            return "Database %s successfully copied to %s" % ( dbname, dbname2 )
+
+    def dropDatabase( self, dbname ):
+        try:
+            self.mc.drop_database( dbname )
+        except Exception:
+            return repr( sys.exc_info() )
+        else:
+            return "Database %s successfully dropped" % ( dbname )
+
+    def copyCollection( self, dbname, collname, dbname2, collname2 ):
+        try:
+            cursor = self.mc[dbname][collname].find( {} )
+            for document in progress.bar( cursor, "Copying collection: ", expected_size=cursor.count() ):
+                self.mc[dbname2][collname2].insert_one( document )
+        except Exception:
+            return repr( sys.exc_info() )
+        else:
+            return "Collection %s:%s duplicated as %s:%s" % ( dbname, collname, dbname2, collname2 )
+
+    def duplicateCollection( self, dbname, collname, collname2 ):
+        return self.copyCollection( dbname, collname, dbname, collname2 )
+
+    def dropCollection( self, dbname, collname ):
+        try:
+            self.mc[dbname].drop_collection( collname )
+        except Exception:
+            return repr( sys.exc_info() )
+        else:
+            return "Collection %s:%s successfully dropped" % ( dbname, collname )
 
 #############################################################################
 class Mops():
@@ -183,7 +222,7 @@ class Mops():
 
         Insert everything from the source database into the destination database.
         """
-        return "NYI"
+        return self.db.copyDatabase( sourceDatabase, destDatabase )
 
     def handleTheCommandDUPLICATECOLL( self, sourceDatabase, sourceCollection, destCollection ):
         """
@@ -191,7 +230,7 @@ class Mops():
 
         Insert everything from the source collection into the destination collection.
         """
-        return "NYI"
+        return self.db.duplicateCollection( sourceDatabase, sourceCollection, destCollection )
 
     def handleTheCommandCOPYCOLL( self, sourceDatabase, sourceCollection, destDatabase, destCollection ):
         """
@@ -199,7 +238,7 @@ class Mops():
 
         Insert everything from the source collection into another database's collection.
         """
-        return "NYI"
+        return self.db.copyCollection( sourceDatabase, sourceCollection, destDatabase, destCollection )
 
     def handleTheCommandDROPDB( self, database ):
         """
@@ -207,7 +246,7 @@ class Mops():
 
         Delete a database.
         """
-        return "NYI"
+        return self.db.dropDatabase( database )
 
     def handleTheCommandDROPCOLL( self, database, collection ):
         """
@@ -215,7 +254,7 @@ class Mops():
 
         Delete a collection.
         """
-        return "NYI"
+        return self.db.dropCollection( database, collection )
 
     def run( self ):
         """
