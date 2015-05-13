@@ -271,7 +271,7 @@ class Mops():
 
 
 #############################################################################
-if __name__ == '__main__':
+def main( args=sys.argv[1:] ):
     console = Mops()
     try:
         console.run()

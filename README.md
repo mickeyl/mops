@@ -28,13 +28,13 @@ Syntax:
 
     :<command> <databaseName> [parameter] [parameter] [parameter]...
 
-Todo before releasing 0.1
+Todo before releasing 1.0
 -------------------------
-* Implement all interactive commands
-* Implement non-interactive commands (commandline)
-* Write installation script
-* Uploading to pypi
+* Implement skip and limit for query mode with default parameter 0:15 (iterating through cursor like in mongo shell)
+* Implement more commands
+* Implement interactive commands also for the commandline
 
 Roadmap
 -------
-* Colored output
+* Colored output?
+* Bash completion?
