@@ -21,6 +21,7 @@
 namespace Mongo
 {
     public static void init();
+    public static void cleanup();
 
     [CCode (cname = "mongoc_client_t", free_function = "mongoc_client_destroy", has_type_id = false)]
     [Compact]
@@ -29,14 +30,25 @@ namespace Mongo
         [CCode (cname = "mongoc_client_new")]
         public Client( string uri = "mongodb://localhost:27017");
 
+        public Database get_database( string dbname );
+        [CCode (array_length = false, array_null_terminated = true)]
+        public string[] get_database_names_with_opts( BSON.Document? opts = null, out BSON.Error error = null );
+        public Collection get_collection( string dbname, string collname );
 
+        public void set_appname( string appname );
     }
 
+    [CCode (cname = "mongoc_database_t", free_function = "mongoc_database_destroy", has_type_id = false)]
+    [Compact]
     public class Database
     {
-
+        public Collection get_collection( string name );
+        [CCode (array_length = false, array_null_terminated = true)]
+        public string[] get_collection_names_with_opts( BSON.Document? opts = null, out BSON.Error error = null );
     }
 
+    [CCode (cname = "mongoc_collection_t", free_function = "mongoc_collection_destroy", has_type_id = false)]
+    [Compact]
     public class Collection
     {
 

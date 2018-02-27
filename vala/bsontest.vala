@@ -2,7 +2,11 @@
 
 void main()
 {
-    var doc = new BSON.BSON();
+    var doc = new BSON.Document();
+
+    BSON.Document d2 = null;
+
+    doc.append_array_begin( "array", -1, d2 );
 
     doc.append_utf8( "foo", -1, "bar", -1 );
 
