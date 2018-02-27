@@ -20,7 +20,7 @@
 [CCode (cheader_filename = "bson.h")]
 namespace BSON
 {
-    [CCode (cname = "bson_error_t", free_function = "", has_type_id = false)]
+    [CCode (cname = "bson_error_t", destroy_function = "", has_type_id = false)]
     public struct Error
     {
         uint32 domain;
@@ -82,10 +82,6 @@ namespace BSON
 
     }
 
-    public class Array : Value
-    {
-    }
-
     [CCode (cname = "bson_t", cprefix = "BSON", lower_case_cprefix = "bson_", has_type_id = false, free_function = "bson_destroy")]
     [Compact]
     public class Document
@@ -96,8 +92,8 @@ namespace BSON
         [CCode (cname = "bson_new_from_json")]
         public Document.from_json( string json, uint length = json.length, out Error error = null );
 
-        public bool append_utf8( string key, uint keylength, string value, uint length );
-        public bool append_array( string key, uint keylength, Array array );
+        public bool append_utf8( string key, uint keylength, string value, uint length = -1 );
+        public bool append_array( string key, uint keylength, Document document );
         public bool append_bool( string key, uint keylength, bool b );
         public bool append_double( string key, uint keylength, double d );
         public bool append_document( string key, uint keylength, Document document );
@@ -110,9 +106,6 @@ namespace BSON
         public bool append_date_time( string key, uint keylength, int64 time );
         public bool append_now_utc( string key, uint keylength );
 
-        public bool append_array_begin( string key, uint keylength, Document* child );
-        public bool append_array_end( Document child );
-
         public string as_json( out size_t length = null );
         public string as_canonical_extended_json( out size_t length = null );
         public string as_relaxed_extended_json( out size_t length = null );
@@ -122,7 +115,17 @@ namespace BSON
 
         public string to_string()
         {
-            return this.as_canonical_extended_json();
+            return as_canonical_extended_json();
+        }
+
+        public bool array_append_int32( int32 i )
+        {
+            return append_int32( count_keys().to_string(), -1, i );
+        }
+
+        public bool array_append_utf8( string utf8 )
+        {
+            return append_utf8( count_keys().to_string(), -1, utf8, -1 );
         }
     }
 }
