@@ -7,7 +7,7 @@ void main()
     var client = new Mongo.Client();
     client.set_appname( "Vala Mongo Demo" );
 
-    var databases = client.get_database_names_with_opts();    
+    var databases = client.get_database_names_with_opts();
     foreach ( var database in databases )
     {
         print( @"$database\n" );
@@ -17,5 +17,17 @@ void main()
         {
             print( @" |--- $collection\n" );
         }
+    }
+
+    var coll = client.get_collection( "foo", "bar" );
+    assert( coll != null );
+
+    var query = new BSON.Document();
+    var cursor = coll.find_with_opts( query, null, null );
+
+    foreach ( unowned BSON.Document doc in cursor )
+    {
+
+        print( @"$doc\n", doc );
     }
 }
